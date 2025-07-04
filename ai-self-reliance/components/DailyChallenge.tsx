@@ -1,174 +1,154 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, Target, RefreshCw, Lightbulb } from 'lucide-react'
+import { Brain, Clock, Star } from 'lucide-react'
 
-export default function DailyChallenge() {
-  const tips = [
-    "🔍 Thử Google với từ khóa tiếng Anh để có kết quả tốt hơn",
-    "📚 Đọc documentation chính thức trước khi hỏi AI",
-    "🤔 Phân tích vấn đề thành các phần nhỏ trước khi tìm giải pháp",
-    "💡 Brainstorm 3 cách giải quyết khác nhau trước khi chọn",
-    "🔨 Thử implement một phiên bản đơn giản trước",
-    "📝 Viết ra những gì bạn đã biết về vấn đề",
-    "🎯 Xác định rõ mục tiêu cuối cùng bạn muốn đạt được",
-    "🧩 Chia nhỏ bài toán phức tạp thành các bước cơ bản",
-    "🔄 Xem lại code cũ để tìm pattern tương tự",
-    "🗣️ Giải thích vấn đề cho người khác (rubber duck debugging)"
+const DailyChallenge: React.FC = () => {
+  const [currentChallenge, setCurrentChallenge] = useState(0)
+  const [isCompleted, setIsCompleted] = useState(false)
+  const [streak, setStreak] = useState(0)
+
+  const challenges = [
+    "Thử giải một bài toán mà bạn thường hỏi AI",
+    "Tìm hiểu một chủ đề mới mà không dùng AI trong 30 phút",
+    "Viết code một tính năng đơn giản mà không tra cứu AI",
+    "Đọc tài liệu gốc thay vì hỏi AI tóm tắt",
+    "Nghĩ ra 5 giải pháp cho một vấn đề trước khi hỏi AI",
+    "Sử dụng sách giáo khoa thay vì chatbot để học",
+    "Thử debug code mà không dùng AI suggest"
   ]
 
-  const today = new Date()
-  const dayIndex = today.getDate() % tips.length
-  const todayTip = tips[dayIndex]
+  useEffect(() => {
+    const today = new Date().toDateString()
+    const savedDate = localStorage.getItem('dailyChallengeDate')
+    const savedIndex = localStorage.getItem('dailyChallengeIndex')
+    const savedStreak = localStorage.getItem('dailyChallengeStreak')
+    const savedCompleted = localStorage.getItem('dailyChallengeCompleted')
+
+    if (savedDate === today) {
+      setCurrentChallenge(parseInt(savedIndex || '0'))
+      setIsCompleted(savedCompleted === 'true')
+    } else {
+      const newIndex = Math.floor(Math.random() * challenges.length)
+      setCurrentChallenge(newIndex)
+      setIsCompleted(false)
+      localStorage.setItem('dailyChallengeDate', today)
+      localStorage.setItem('dailyChallengeIndex', newIndex.toString())
+      localStorage.setItem('dailyChallengeCompleted', 'false')
+    }
+
+    setStreak(parseInt(savedStreak || '0'))
+  }, [challenges.length])
+
+  const completeChallenge = () => {
+    const newCompleted = !isCompleted
+    setIsCompleted(newCompleted)
+    localStorage.setItem('dailyChallengeCompleted', newCompleted.toString())
+
+    if (newCompleted) {
+      const newStreak = streak + 1
+      setStreak(newStreak)
+      localStorage.setItem('dailyChallengeStreak', newStreak.toString())
+    }
+  }
+
+  const getCurrentDayOfWeek = () => {
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+    return days[new Date().getDay()]
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6"
+      className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
     >
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex items-center justify-between mb-6"
-      >
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <motion.div
-            animate={{
-              rotate: [0, 5, -5, 0],
-              scale: [1, 1.1, 1]
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="p-2 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg"
-          >
-            <Target className="text-white" size={24} />
-          </motion.div>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-            Thử Thách Hôm Nay
-          </h2>
+          <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+            <Brain className="text-white" size={20} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-black">Thử Thách Hôm Nay</h2>
+            <p className="text-sm text-gray-500">{getCurrentDayOfWeek()}</p>
+          </div>
         </div>
 
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="text-blue-500 dark:text-blue-400"
-        >
-          <RefreshCw size={20} />
-        </motion.div>
-      </motion.div>
+        <div className="text-right">
+          <div className="flex items-center space-x-1 text-black font-semibold">
+            <Star size={16} className="text-yellow-500" />
+            <span>{streak}</span>
+          </div>
+          <p className="text-xs text-gray-500">Streak</p>
+        </div>
+      </div>
 
-      {/* Main Tip */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
-        className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 
-                   dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 
-                   rounded-xl p-6 mb-6 border border-blue-100 dark:border-blue-800"
-      >
-        {/* Background decoration */}
-        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-20 h-20 bg-blue-100 dark:bg-blue-800/20 rounded-full opacity-50" />
-        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-16 h-16 bg-purple-100 dark:bg-purple-800/20 rounded-full opacity-50" />
-        
-        <div className="relative z-10">
+      {/* Challenge Content */}
+      <div className="mb-6">
+        <div className="bg-gray-50 rounded-lg p-4 border">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+              <Clock className="text-white" size={16} />
+            </div>
+            <div className="flex-1">
+              <p className="text-gray-800 font-medium leading-relaxed">
+                {challenges[currentChallenge]}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      <div className="space-y-3">
+        <motion.button
+          onClick={completeChallenge}
+          className={`w-full py-3 px-4 rounded-lg font-medium transition-all ${
+            isCompleted
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-black text-white hover:bg-gray-800'
+          }`}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isCompleted ? (
+            <div className="flex items-center justify-center space-x-2">
+              <Star className="text-green-600" size={16} />
+              <span>Đã hoàn thành!</span>
+            </div>
+          ) : (
+            'Đánh dấu hoàn thành'
+          )}
+        </motion.button>
+
+        {isCompleted && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex items-start space-x-3 mb-4"
+            className="text-center text-sm text-gray-600 bg-green-50 py-2 rounded border border-green-200"
           >
-            <motion.div
-              animate={{
-                bounce: [0, -5, 0],
-              }}
-              transition={{
-                duration: 1,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            >
-              <Lightbulb className="text-yellow-500" size={24} />
-            </motion.div>
-            <p className="text-gray-700 dark:text-gray-300 font-medium text-lg leading-relaxed">
-              {todayTip}
-            </p>
+            🎉 Tuyệt vời! Bạn đang phát triển tư duy độc lập!
           </motion.div>
-        </div>
-      </motion.div>
+        )}
+      </div>
 
-      {/* Info Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="flex justify-between items-center mb-4"
-      >
-        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-          <Calendar size={16} />
-          <span>Ngày {today.getDate()}/{today.getMonth() + 1}</span>
+      {/* Progress Indicator */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>Tiến độ hôm nay</span>
+          <span>{isCompleted ? '100%' : '0%'}</span>
         </div>
-        
-        <div className="flex items-center space-x-2">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Tip #{dayIndex + 1}/10
-          </div>
-          <div className="flex space-x-1">
-            {Array.from({ length: 10 }, (_, i) => (
-              <motion.div
-                key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i === dayIndex 
-                    ? 'bg-blue-500' 
-                    : i < dayIndex 
-                    ? 'bg-blue-300' 
-                    : 'bg-gray-200 dark:bg-gray-600'
-                }`}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.5 + i * 0.05 }}
-              />
-            ))}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Goal Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="relative p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 
-                   rounded-xl border-l-4 border-yellow-400"
-      >
-        <div className="flex items-start space-x-3">
+        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
           <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="text-yellow-500 mt-1"
-          >
-            🎯
-          </motion.div>
-          <div>
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-              <strong>Mục tiêu hôm nay:</strong> Hãy thử áp dụng tip này ít nhất 1 lần!
-            </p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-              Mỗi lần thực hành sẽ giúp bạn trở nên độc lập hơn 💪
-            </p>
-          </div>
+            className="bg-black h-2 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: isCompleted ? '100%' : '0%' }}
+            transition={{ duration: 0.5 }}
+          />
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   )
-} 
+}
+
+export default DailyChallenge 

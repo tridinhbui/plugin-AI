@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Play, CheckCircle, ArrowRight, Clock, Target, Trophy, Brain, 
-  Zap, BookOpen, Users, Star, Lightbulb, TrendingUp, Award,
-  ChevronDown, ChevronUp, X, Map
+  Zap, Star, Lightbulb, TrendingUp,
+  ChevronDown, X, Map
 } from 'lucide-react'
 
 interface RoadmapProps {
@@ -15,7 +15,7 @@ interface RoadmapStep {
   id: number
   title: string
   description: string
-  icon: React.ComponentType<any>
+  icon: React.ComponentType<{ size?: number; className?: string }>
   color: string
   bgColor: string
   details: string[]

@@ -1,316 +1,367 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, Brain, CheckCircle, Clock, Zap } from 'lucide-react'
-import confetti from 'canvas-confetti'
+import { Clock, AlertCircle, Send, Bot, User, Sparkles } from 'lucide-react'
 import CooldownModal from './CooldownModal'
 import ReflectionPopup from './ReflectionPopup'
-import ProgressPie from './ProgressPie'
 
-interface AiBoxState {
-  usageCount: number
-  selfSolved: number
-  aiSolved: number
-  streak: number
-  lastUsageDate: string
+interface Message {
+  id: string
+  type: 'user' | 'ai'
+  content: string
+  timestamp: Date
 }
 
 export default function AiBox() {
-  const [prompt, setPrompt] = useState('')
-  const [response, setResponse] = useState('')
-  const [state, setState] = useState<AiBoxState>({
-    usageCount: 0,
-    selfSolved: 0,
-    aiSolved: 0,
-    streak: 0,
-    lastUsageDate: ''
-  })
-  const [cooldown, setCooldown] = useState(false)
-  const [cooldownSeconds, setCooldownSeconds] = useState(30)
-  const [showRefPopup, setShowRefPopup] = useState(false)
+  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [dailyUsage, setDailyUsage] = useState(0)
+  const [lastUsed, setLastUsed] = useState<Date | null>(null)
+  const [showCooldown, setShowCooldown] = useState(false)
+  const [showReflection, setShowReflection] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Load state from localStorage
+  const DAILY_LIMIT = 3
+  const COOLDOWN_MINUTES = 0.5 // 30 seconds for demo
+
   useEffect(() => {
-    const savedState = localStorage.getItem('aiBoxState')
-    if (savedState) {
-      setState(JSON.parse(savedState))
+    const stored = localStorage.getItem('aiUsageData')
+    if (stored) {
+      const data = JSON.parse(stored)
+      const today = new Date().toDateString()
+      
+      if (data.date === today) {
+        setDailyUsage(data.count)
+        setLastUsed(data.lastUsed ? new Date(data.lastUsed) : null)
+      } else {
+        // Reset for new day
+        setDailyUsage(0)
+        setLastUsed(null)
+        localStorage.setItem('aiUsageData', JSON.stringify({
+          date: today,
+          count: 0,
+          lastUsed: null
+        }))
+      }
+    }
+
+    // Load messages
+    const storedMessages = localStorage.getItem('aiMessages')
+    if (storedMessages) {
+      const parsedMessages = JSON.parse(storedMessages).map((msg: Message) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }))
+      setMessages(parsedMessages)
     }
   }, [])
 
-  // Save state to localStorage
-  useEffect(() => {
-    localStorage.setItem('aiBoxState', JSON.stringify(state))
-  }, [state])
-
-  // Show reflection popup when typing > 50 characters
-  useEffect(() => {
-    if (prompt.length >= 50 && !showRefPopup) {
-      setShowRefPopup(true)
-    }
-  }, [prompt, showRefPopup])
-
-  const simulateAiResponse = (userPrompt: string) => {
-    const responses = [
-      `Tôi hiểu bạn muốn hỏi về "${userPrompt.slice(0, 30)}...". Đây là một câu trả lời mô phỏng từ AI.`,
-      `Về vấn đề "${userPrompt.slice(0, 30)}...", đây là gợi ý: Hãy thử tự tìm hiểu trước khi hỏi AI.`,
-      `Câu hỏi "${userPrompt.slice(0, 30)}..." rất hay! Nhưng bạn đã thử Google chưa?`,
-      `Đối với "${userPrompt.slice(0, 30)}...", tôi khuyên bạn nên tự research trước.`,
-      `Về "${userPrompt.slice(0, 30)}...", hãy thử suy nghĩ độc lập trước khi dựa vào AI.`
-    ]
-    return responses[Math.floor(Math.random() * responses.length)]
-  }
-
-  const handleAskAi = () => {
-    if (cooldown || prompt.trim() === '') return
-
-    const aiResponse = simulateAiResponse(prompt)
-    setResponse(aiResponse)
-
-    const newUsageCount = state.usageCount + 1
-    const newState = {
-      ...state,
-      usageCount: newUsageCount,
-      aiSolved: state.aiSolved + 1,
-      lastUsageDate: new Date().toDateString()
-    }
-
-    setState(newState)
-
-    // Trigger cooldown after 3 uses
-    if (newUsageCount >= 3) {
-      setCooldown(true)
-      setCooldownSeconds(30)
-      setState(prev => ({ ...prev, usageCount: 0 }))
-    }
-
-    setPrompt('')
-  }
-
-  const handleCooldownFinish = () => {
-    setCooldown(false)
-  }
-
-  const handleSelfSolved = () => {
-    setState(prev => ({
-      ...prev,
-      selfSolved: prev.selfSolved + 1
-    }))
+  const canUseAI = () => {
+    if (dailyUsage >= DAILY_LIMIT) return false
     
-    // Trigger confetti effect
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#10B981', '#34D399', '#6EE7B7']
-    })
+    if (lastUsed) {
+      const timeDiff = (new Date().getTime() - lastUsed.getTime()) / (1000 * 60)
+      return timeDiff >= COOLDOWN_MINUTES
+    }
+    
+    return true
   }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!input.trim()) return
+
+    // Check for reflection popup
+    if (input.length > 50) {
+      setShowReflection(true)
+      return
+    }
+
+    if (!canUseAI()) {
+      setShowCooldown(true)
+      return
+    }
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: input,
+      timestamp: new Date()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setIsLoading(true)
+
+    // Simulate AI response
+    setTimeout(() => {
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: `Tôi hiểu bạn đang tìm hiểu về "${input}". Tuy nhiên, hãy thử tự suy nghĩ trước! Bạn có thể:\n\n• Tìm kiếm thông tin từ nhiều nguồn đáng tin cậy\n• Phân tích vấn đề từ nhiều góc độ khác nhau\n• Thảo luận với bạn bè hoặc chuyên gia\n• Ghi chép lại suy nghĩ của bạn\n\nViệc tự tìm hiểu sẽ giúp bạn hiểu sâu hơn và nhớ lâu hơn!`,
+        timestamp: new Date()
+      }
+
+      setMessages(prev => [...prev, aiMessage])
+      setIsLoading(false)
+
+      // Update usage
+      const newUsage = dailyUsage + 1
+      const now = new Date()
+      setDailyUsage(newUsage)
+      setLastUsed(now)
+
+      const today = new Date().toDateString()
+      localStorage.setItem('aiUsageData', JSON.stringify({
+        date: today,
+        count: newUsage,
+        lastUsed: now.toISOString()
+      }))
+
+      // Save messages
+      localStorage.setItem('aiMessages', JSON.stringify([...messages, userMessage, aiMessage]))
+    }, 1500)
+  }
+
+  const handleContinueSubmit = () => {
+    setShowReflection(false)
+    const submitEvent = { preventDefault: () => {} } as React.FormEvent
+    handleSubmit(submitEvent)
+  }
+
+  const getRemainingTime = () => {
+    if (!lastUsed) return 0
+    const timeDiff = (new Date().getTime() - lastUsed.getTime()) / (1000 * 60)
+    return Math.max(0, COOLDOWN_MINUTES - timeDiff)
+  }
+
+  const remainingUses = DAILY_LIMIT - dailyUsage
+  const remainingTime = getRemainingTime()
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 lg:p-8"
-    >
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex justify-between items-center mb-6"
-      >
-        <div className="flex items-center space-x-3">
-          <motion.div
-            animate={{
-              rotate: [0, 10, -10, 0],
-              scale: [1, 1.1, 1]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg"
-          >
-            <Brain className="text-white" size={24} />
-          </motion.div>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-            AI Assistant
-          </h2>
-        </div>
-        
-        <motion.div
-          className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${
-            state.usageCount === 0
-              ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-              : state.usageCount <= 1
-              ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400'
-              : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-          }`}
-          animate={{
-            scale: state.usageCount >= 2 ? [1, 1.05, 1] : 1
-          }}
-          transition={{
-            duration: 0.5,
-            repeat: state.usageCount >= 2 ? Infinity : 0
-          }}
-        >
-          <Clock size={16} />
-          <span>Sử dụng: {state.usageCount}/3</span>
-        </motion.div>
-      </motion.div>
-
-      {/* Progress Chart */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
-        className="mb-8"
-      >
-        <ProgressPie selfSolved={state.selfSolved} aiSolved={state.aiSolved} />
-      </motion.div>
-
-      {/* Input Area */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="space-y-6"
-      >
-        <div className="relative">
-          <motion.textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Nhập câu hỏi của bạn... (>50 ký tự sẽ có gợi ý tư duy)"
-            className="w-full h-40 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl 
-                       bg-white/50 dark:bg-gray-700/50 text-gray-800 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:border-blue-400
-                       resize-none transition-all duration-300 backdrop-blur-sm
-                       placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            whileFocus={{ scale: 1.01 }}
-          />
-          
-          {/* Character counter */}
-          <div className="absolute bottom-3 right-3 text-xs text-gray-400 dark:text-gray-500">
-            {prompt.length}/∞
+    <div className="w-full">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Header - Enhanced */}
+        <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-900 rounded-xl shadow-lg">
+                <Bot className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">AI Assistant</h3>
+                <p className="text-sm text-gray-600">Sử dụng có giới hạn để khuyến khích tự học</p>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center space-x-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-900">{remainingUses}</div>
+                <div className="text-xs text-gray-500">Lượt còn lại</div>
+              </div>
+              {remainingTime > 0 && (
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Math.ceil(remainingTime)}
+                  </div>
+                  <div className="text-xs text-gray-500">Phút chờ</div>
+                </div>
+              )}
+            </div>
           </div>
-          
-          {/* Reflection warning */}
+
+          {/* Mobile usage info */}
+          <div className="sm:hidden mt-3 flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <div className="flex space-x-1">
+                {[...Array(DAILY_LIMIT)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full ${
+                      i < dailyUsage ? 'bg-red-400' : 'bg-green-400'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm text-gray-600">
+                {remainingUses} lượt còn lại
+              </span>
+            </div>
+            {remainingTime > 0 && (
+              <div className="flex items-center space-x-1 text-orange-600">
+                <Clock size={14} />
+                <span className="text-sm font-medium">
+                  {Math.ceil(remainingTime)}p
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Chat Messages - Enhanced */}
+        <div className="h-80 lg:h-96 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           <AnimatePresence>
-            {prompt.length >= 40 && prompt.length < 50 && (
+            {messages.length === 0 ? (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute -top-8 right-0 bg-yellow-100 dark:bg-yellow-900/20 
-                           text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded text-xs"
+                className="text-center py-8"
               >
-                Còn {50 - prompt.length} ký tự nữa sẽ có gợi ý! 💭
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center">
+                  <Sparkles className="text-blue-600" size={24} />
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                  Trợ lý AI của bạn
+                </h4>
+                <p className="text-gray-600 text-sm max-w-md mx-auto leading-relaxed">
+                  Hãy thử tự suy nghĩ trước khi hỏi! Mỗi ngày bạn chỉ có 3 lượt hỏi.
+                </p>
               </motion.div>
+            ) : (
+              messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`flex items-start space-x-3 max-w-[85%] ${
+                    message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                  }`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      message.type === 'user' 
+                        ? 'bg-gray-900 text-white' 
+                        : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                    }`}>
+                      {message.type === 'user' ? <User size={16} /> : <Bot size={16} />}
+                    </div>
+                    <div className={`rounded-2xl px-4 py-3 ${
+                      message.type === 'user'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-50 text-gray-900 border border-gray-200'
+                    }`}>
+                      <div className="text-sm leading-relaxed whitespace-pre-line">
+                        {message.content}
+                      </div>
+                      <div className={`text-xs mt-2 ${
+                        message.type === 'user' ? 'text-gray-300' : 'text-gray-500'
+                      }`}>
+                        {message.timestamp.toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
             )}
           </AnimatePresence>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-4">
-          <motion.button
-            onClick={handleAskAi}
-            disabled={cooldown || prompt.trim() === ''}
-            className={`flex-1 flex items-center justify-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-              cooldown || prompt.trim() === ''
-                ? 'bg-gray-200 dark:bg-gray-600 text-gray-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl'
-            }`}
-            whileHover={cooldown || prompt.trim() === '' ? {} : { scale: 1.02 }}
-            whileTap={cooldown || prompt.trim() === '' ? {} : { scale: 0.98 }}
-          >
-            {cooldown ? (
-              <>
-                <Clock size={20} />
-                <span>Đang Cooldown...</span>
-              </>
-            ) : (
-              <>
-                <Send size={20} />
-                <span>Gửi cho AI</span>
-              </>
-            )}
-          </motion.button>
-
-          <motion.button
-            onClick={handleSelfSolved}
-            className="flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 
-                       hover:from-green-600 hover:to-green-700 text-white rounded-xl font-medium 
-                       transition-all duration-300 shadow-lg hover:shadow-xl"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <CheckCircle size={20} />
-            <span>Tự Giải Quyết</span>
-            <Sparkles size={16} />
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Response Area */}
-      <AnimatePresence>
-        {response && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-8 overflow-hidden"
-          >
+          {isLoading && (
             <motion.div
-              initial={{ y: 20 }}
-              animate={{ y: 0 }}
-              className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 
-                         rounded-xl border border-blue-100 dark:border-blue-800"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start"
             >
-              <div className="flex items-center space-x-2 mb-3">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                >
-                  <Zap className="text-blue-500" size={20} />
-                </motion.div>
-                <h3 className="font-semibold text-blue-800 dark:text-blue-200">
-                  Phản hồi từ AI:
-                </h3>
+              <div className="flex items-start space-x-3 max-w-[85%]">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center">
+                  <Bot size={16} />
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+                  <div className="flex space-x-1">
+                    {[...Array(3)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+                        style={{ animationDelay: `${i * 0.2}s` }}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {response}
-              </p>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Usage Tips */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 
-                   rounded-xl border border-purple-100 dark:border-purple-800"
-      >
-        <div className="text-sm text-purple-700 dark:text-purple-300">
-          <strong>💡 Gợi ý:</strong> Hãy thử Google, đọc docs, hoặc chia nhỏ vấn đề trước khi hỏi AI!
+          )}
         </div>
-      </motion.div>
 
-      {/* Cooldown Modal */}
-      <AnimatePresence>
-        {cooldown && (
-          <CooldownModal
-            seconds={cooldownSeconds}
-            onFinish={handleCooldownFinish}
-          />
-        )}
-      </AnimatePresence>
+        {/* Input Form - Enhanced */}
+        <div className="border-t border-gray-200 bg-gray-50 p-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Nhập câu hỏi của bạn... (Hãy cố gắng tự suy nghĩ trước!)"
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200 text-sm"
+                rows={2}
+                disabled={!canUseAI() || isLoading}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || !canUseAI() || isLoading}
+                className="absolute right-2 bottom-2 p-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                <Send size={16} />
+              </button>
+            </div>
 
-      {/* Reflection Popup */}
-      <ReflectionPopup
-        visible={showRefPopup}
-        setVisible={setShowRefPopup}
+            {/* Status Messages */}
+            <AnimatePresence>
+              {input.length > 50 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center space-x-2 text-orange-600 text-sm bg-orange-50 border border-orange-200 rounded-lg px-3 py-2"
+                >
+                  <AlertCircle size={16} />
+                  <span>Câu hỏi dài - hãy thử tự suy nghĩ trước!</span>
+                </motion.div>
+              )}
+
+              {dailyUsage >= DAILY_LIMIT && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2"
+                >
+                  <AlertCircle size={16} />
+                  <span>Đã hết lượt hỏi hôm nay. Hãy quay lại vào ngày mai!</span>
+                </motion.div>
+              )}
+
+              {remainingTime > 0 && dailyUsage < DAILY_LIMIT && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex items-center space-x-2 text-blue-600 text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2"
+                >
+                  <Clock size={16} />
+                  <span>
+                    Còn {Math.ceil(remainingTime)} phút nữa để sử dụng tiếp
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </form>
+        </div>
+      </div>
+
+      {/* Modals */}
+      <CooldownModal
+        visible={showCooldown}
+        onClose={() => setShowCooldown(false)}
+        remainingTime={Math.ceil(remainingTime)}
+        dailyUsage={dailyUsage}
+        dailyLimit={DAILY_LIMIT}
       />
-    </motion.div>
+
+      <ReflectionPopup
+        visible={showReflection}
+        onClose={() => setShowReflection(false)}
+        onContinue={handleContinueSubmit}
+        questionLength={input.length}
+      />
+    </div>
   )
 } 

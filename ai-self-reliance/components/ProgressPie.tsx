@@ -1,22 +1,10 @@
 import React from 'react'
-import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { TrendingUp, Brain, User, BarChart3 } from 'lucide-react'
-
-// Dynamically import Chart to avoid SSR issues
-const Chart = dynamic(() => import('react-chartjs-2').then((mod) => mod.Pie), {
-  ssr: false,
-  loading: () => <div className="h-32 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
-})
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, ChartConfiguration } from 'chart.js'
+import { Pie } from 'react-chartjs-2'
 
 // Register Chart.js components
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-} from 'chart.js'
-
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 interface ProgressPieProps {
@@ -27,50 +15,67 @@ interface ProgressPieProps {
 export default function ProgressPie({ selfSolved, aiSolved }: ProgressPieProps) {
   const total = selfSolved + aiSolved
   
-  const data = {
-    labels: ['Tự Giải Quyết', 'Hỏi AI'],
+  const chartData = {
+    labels: ['Tự giải quyết', 'Dùng AI'],
     datasets: [
       {
         data: [selfSolved, aiSolved],
         backgroundColor: [
-          '#10B981', // Green for self-solved
-          '#3B82F6', // Blue for AI-solved
+          'rgba(34, 197, 94, 0.8)',  // Green for self-solved
+          'rgba(239, 68, 68, 0.8)'   // Red for AI usage
         ],
         borderColor: [
-          '#059669',
-          '#2563EB',
+          'rgba(34, 197, 94, 1)',
+          'rgba(239, 68, 68, 1)'
         ],
         borderWidth: 2,
-      },
-    ],
+        hoverBackgroundColor: [
+          'rgba(34, 197, 94, 0.9)',
+          'rgba(239, 68, 68, 0.9)'
+        ]
+      }
+    ]
   }
 
-  const options = {
+  const chartOptions: ChartConfiguration<'pie'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom' as const,
+        position: 'bottom',
         labels: {
           padding: 20,
           usePointStyle: true,
-          color: '#6B7280',
           font: {
             size: 12,
+            weight: 'bold'
           },
-        },
+          color: '#6B7280'
+        }
       },
       tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#FFFFFF',
+        bodyColor: '#FFFFFF',
+        borderColor: '#374151',
+        borderWidth: 1,
         callbacks: {
-          label: function(context: any) {
+          label: function(context: { label?: string; parsed: number; dataset: { data: number[] } }) {
             const label = context.label || ''
             const value = context.parsed
-            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
             return `${label}: ${value} (${percentage}%)`
           }
         }
       }
     },
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 1000,
+      easing: 'easeOutQuart'
+    }
   }
 
   if (total === 0) {
@@ -168,7 +173,7 @@ export default function ProgressPie({ selfSolved, aiSolved }: ProgressPieProps) 
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-green-50/50 
                         dark:from-blue-900/10 dark:to-green-900/10 rounded-2xl" />
         <div className="relative z-10 h-full">
-          <Chart data={data} options={options} />
+          <Pie data={chartData} options={chartOptions} />
         </div>
       </motion.div>
 
