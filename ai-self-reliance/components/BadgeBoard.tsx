@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Award, Target, Star, Crown, Trophy } from 'lucide-react'
+import { Award, Target, Star, Crown, Trophy, LucideIcon } from 'lucide-react'
 
 interface BadgeData {
   id: number
   title: string
   description: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: LucideIcon
   requirement: number
   color: string
 }
